@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chest X-ray COVID screening</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --lightbox: #dfe6e9;
+    --sleeve: #f4f7f8;
+    --ink: #10262e;
+    --ink-soft: #46606a;
+    --film: #071319;
+    --film-line: #2c4a56;
+    --signal: #4cc3dc;
+    --teal: #0d6a82;
+    --covid: #b8520a;
+    --covid-tint: #f6dcc6;
+    --clear: #256f52;
+    --clear-tint: #cfe6da;
+    --rule: #b7c5cb;
+    --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+    --text: "Source Serif 4", Georgia, "Times New Roman", serif;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--lightbox);
+    color: var(--ink);
+    font-family: var(--text);
+    font-size: 1.0625rem;
+    line-height: 1.6;
+  }
+  .page { max-width: 1120px; margin: 0 auto; padding: 40px 24px 56px; }
+
+  header { max-width: 640px; margin-bottom: 32px; }
+  h1 {
+    margin: 0 0 10px;
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: clamp(2rem, 4.6vw, 3rem);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+  }
+  header p { margin: 0; color: var(--ink-soft); }
+
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    gap: 32px;
+    align-items: start;
+  }
+
+  /* ---------- Viewer (the film) ---------- */
+  .viewer { min-width: 0; }
+  .sr {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap;
+  }
+  .film {
+    position: relative;
+    display: block;
+    aspect-ratio: 1 / 1;
+    background: var(--film);
+    border-radius: 6px;
+    overflow: hidden;
+    cursor: pointer;
+    outline: 2px solid transparent;
+    outline-offset: 3px;
+  }
+  .sr:focus-visible + .film { outline-color: var(--teal); }
+  .film.dragging { box-shadow: inset 0 0 0 3px var(--signal); }
+  .film img {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: contain; display: none;
+  }
+  .film.has-image img { display: block; }
+
+  /* crop marks: the corners of a film frame */
+  .mark { position: absolute; width: 28px; height: 28px; border: 0 solid var(--signal); opacity: .85; pointer-events: none; }
+  .mark.tl { top: 14px; left: 14px; border-top-width: 2px; border-left-width: 2px; }
+  .mark.tr { top: 14px; right: 14px; border-top-width: 2px; border-right-width: 2px; }
+  .mark.bl { bottom: 14px; left: 14px; border-bottom-width: 2px; border-left-width: 2px; }
+  .mark.br { bottom: 14px; right: 14px; border-bottom-width: 2px; border-right-width: 2px; }
+
+  .prompt {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 6px; padding: 48px; text-align: center; color: #b9d3db;
+  }
+  .film.has-image .prompt { display: none; }
+  .prompt strong {
+    font-family: var(--display); font-weight: 500;
+    font-size: 1.4rem; color: #eaf6f9; letter-spacing: -0.01em;
+  }
+  .prompt span { font-size: .95rem; color: #8fb0ba; }
+
+  /* scan line, shown only while the model is running */
+  .scan {
+    position: absolute; left: 0; right: 0; top: 0; height: 90px; display: none; pointer-events: none;
+    background: linear-gradient(to bottom, rgba(76,195,220,0) 0%, rgba(76,195,220,.28) 92%, rgba(76,195,220,.9) 100%);
+    border-bottom: 2px solid var(--signal);
+    animation: sweep 1.6s ease-in-out infinite alternate;
+  }
+  .film.busy .scan { display: block; }
+  @keyframes sweep { from { transform: translateY(-90px); } to { transform: translateY(calc(100cqh - 90px)); } }
+  .film { container-type: size; }
+
+  .bar { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+  .filename {
+    flex: 1; min-width: 0; color: var(--ink-soft); font-size: .95rem;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  button {
+    font-family: var(--display); font-weight: 500; font-size: 1rem;
+    border-radius: 6px; padding: 11px 20px; min-height: 44px; cursor: pointer;
+    border: 1.5px solid transparent;
+  }
+  button:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+  .primary { background: var(--teal); color: #fff; }
+  .primary:hover:not(:disabled) { background: #0a566a; }
+  .secondary { background: transparent; color: var(--ink); border-color: var(--rule); }
+  .secondary:hover:not(:disabled) { border-color: var(--ink-soft); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+
+  /* ---------- Reading panel ---------- */
+  .reading {
+    background: var(--sleeve);
+    border-radius: 6px;
+    padding: 28px;
+    min-height: 320px;
+  }
+  .reading h2 {
+    margin: 0 0 8px;
+    font-family: var(--display); font-weight: 700;
+    font-size: 1.7rem; line-height: 1.15; letter-spacing: -0.015em;
+  }
+  .reading p { margin: 0 0 14px; }
+  .muted { color: var(--ink-soft); }
+
+  .verdict.covid h2 { color: var(--covid); }
+  .verdict.clear h2 { color: var(--clear); }
+  .verdict.uncertain h2 { color: var(--ink); }
+
+  .gauge { margin: 22px 0 8px; }
+  .track {
+    position: relative; height: 14px; border-radius: 7px;
+    background: linear-gradient(to right, var(--clear-tint) 0 50%, var(--covid-tint) 50% 100%);
+  }
+  .tick { position: absolute; left: 50%; top: -5px; bottom: -5px; width: 2px; background: var(--ink-soft); }
+  .pin {
+    position: absolute; top: -6px; width: 6px; height: 26px; margin-left: -3px;
+    background: var(--ink); border-radius: 3px; left: 50%;
+    transition: left .7s cubic-bezier(.2, .8, .2, 1);
+  }
+  .scale { display: flex; justify-content: space-between; margin-top: 8px; font-size: .9rem; color: var(--ink-soft); }
+  .score { font-family: var(--display); font-weight: 500; font-variant-numeric: tabular-nums; }
+
+  .notes { margin: 18px 0 0; padding: 0; list-style: none; }
+  .notes li { padding: 10px 0; border-top: 1px solid var(--rule); }
+  .notes li.warn { color: var(--covid); }
+
+  .error { color: #9b2c1a; }
+  .disclaimer {
+    margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--rule);
+    font-size: .95rem; color: var(--ink-soft);
+  }
+  .disclaimer strong { color: var(--ink); font-weight: 600; }
+
+  .method { margin-top: 20px; font-size: .95rem; color: var(--ink-soft); max-width: 60ch; }
+
+  @media (max-width: 860px) {
+    .grid { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+    .page { padding: 28px 16px 40px; }
+    .reading { padding: 22px; min-height: 0; }
+    .prompt { padding: 28px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .scan { animation: none; height: 100%; opacity: .25; transform: none; }
+    .pin { transition: none; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>Chest X-ray COVID screening</h1>
+    <p>Upload a chest X-ray and the model estimates whether it shows a COVID-19 pattern.</p>
+  </header>
+
+  <main class="grid">
+    <section class="viewer" aria-label="X-ray upload">
+      <input id="file" class="sr" type="file" accept="image/png,image/jpeg,image/bmp,image/webp">
+      <label id="film" class="film" for="file">
+        <img id="preview" alt="Uploaded chest X-ray">
+        <span class="prompt">
+          <strong>Drop a chest X-ray here</strong>
+          <span>or click to choose a PNG, JPG, BMP or WebP file up to 10 MB</span>
+        </span>
+        <span class="scan" aria-hidden="true"></span>
+        <i class="mark tl"></i><i class="mark tr"></i><i class="mark bl"></i><i class="mark br"></i>
+      </label>
+      <div class="bar">
+        <span id="filename" class="filename">No image selected</span>
+        <button id="clear" class="secondary" type="button" disabled>Clear</button>
+        <button id="analyse" class="primary" type="button" disabled>Analyse X-ray</button>
+      </div>
+    </section>
+
+    <section class="reading" aria-live="polite" aria-busy="false" id="reading">
+      <div id="r-idle">
+        <h2>No image analysed yet</h2>
+        <p class="muted">Choose an X-ray on the left. The result appears here with the model's score, so you can see how close the call was.</p>
+      </div>
+
+      <div id="r-busy" hidden>
+        <h2>Analysing…</h2>
+        <p class="muted">The image is resized to 224 × 224 pixels and passed through the model.</p>
+      </div>
+
+      <div id="r-error" hidden>
+        <h2>Could not analyse the image</h2>
+        <p class="error" id="error-text"></p>
+      </div>
+
+      <div id="r-done" hidden>
+        <div class="verdict" id="verdict">
+          <h2 id="verdict-title"></h2>
+          <p id="verdict-sub" class="muted"></p>
+        </div>
+
+        <div class="gauge" id="gauge">
+          <div class="track" role="img" id="track" aria-label="">
+            <span class="tick"></span>
+            <span class="pin" id="pin"></span>
+          </div>
+          <div class="scale"><span>Non-COVID</span><span>COVID</span></div>
+        </div>
+        <p class="score" id="score"></p>
+
+        <ul class="notes" id="notes"></ul>
+      </div>
+
+      <p class="disclaimer">
+        <strong>Demonstration only.</strong> This is a student project, not a medical device. It cannot diagnose COVID-19 and must not guide any health decision. See a clinician for a real assessment.
+      </p>
+    </section>
+  </main>
+
+  <p class="method">
+    How it works: two pretrained image networks, VGG19 and EfficientNetB0, read the X-ray. A small classifier on top, trained on a public chest X-ray dataset, turns their output into one score.
+  </p>
+</div>
+
+<script>
+(function () {
+  var MAX_BYTES = 10 * 1024 * 1024;
+  var $ = function (id) { return document.getElementById(id); };
+
+  var input = $('file'), film = $('film'), preview = $('preview');
+  var filenameEl = $('filename'), clearBtn = $('clear'), analyseBtn = $('analyse');
+  var reading = $('reading');
+  var panels = { idle: $('r-idle'), busy: $('r-busy'), error: $('r-error'), done: $('r-done') };
+
+  var currentFile = null;
+  var objectUrl = null;
+
+  function show(name) {
+    Object.keys(panels).forEach(function (key) { panels[key].hidden = (key !== name); });
+    reading.setAttribute('aria-busy', name === 'busy' ? 'true' : 'false');
+  }
+
+  function showError(message) {
+    $('error-text').textContent = message;
+    show('error');
+  }
+
+  function setBusy(isBusy) {
+    film.classList.toggle('busy', isBusy);
+    analyseBtn.disabled = isBusy || !currentFile;
+    clearBtn.disabled = isBusy || !currentFile;
+    input.disabled = isBusy;
+  }
+
+  function setFile(file) {
+    if (!file) return;
+    if (!file.type || file.type.indexOf('image/') !== 0) {
+      showError('That file is not an image. Choose a PNG, JPG, BMP or WebP file.');
+      return;
+    }
+    if (file.size > MAX_BYTES) {
+      showError('That image is larger than 10 MB. Choose a smaller file.');
+      return;
+    }
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    objectUrl = URL.createObjectURL(file);
+    currentFile = file;
+    preview.src = objectUrl;
+    film.classList.add('has-image');
+    filenameEl.textContent = file.name;
+    analyseBtn.disabled = false;
+    clearBtn.disabled = false;
+    show('idle');
+    $('r-idle').querySelector('h2').textContent = 'Ready to analyse';
+  }
+
+  function clearFile() {
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    objectUrl = null;
+    currentFile = null;
+    input.value = '';
+    preview.removeAttribute('src');
+    film.classList.remove('has-image');
+    filenameEl.textContent = 'No image selected';
+    analyseBtn.disabled = true;
+    clearBtn.disabled = true;
+    $('r-idle').querySelector('h2').textContent = 'No image analysed yet';
+    show('idle');
+  }
+
+  function confidenceWord(p) {
+    var margin = Math.abs(p - 0.5) * 2;
+    if (margin >= 0.6) return 'high';
+    if (margin >= 0.2) return 'moderate';
+    return 'low';
+  }
+
+  function render(data) {
+    var isCovid = data.label ? data.label === 'covid' : data.result === 'COVID';
+    var p = (typeof data.covid_probability === 'number') ? data.covid_probability : null;
+
+    var verdict = $('verdict');
+    var lowConfidence = (p !== null) && confidenceWord(p) === 'low';
+    verdict.className = 'verdict ' + (lowConfidence ? 'uncertain' : (isCovid ? 'covid' : 'clear'));
+    $('verdict-title').textContent = lowConfidence
+      ? 'Uncertain result'
+      : (isCovid ? 'COVID-19 pattern detected' : 'No COVID-19 pattern detected');
+
+    var gauge = $('gauge'), score = $('score'), sub = $('verdict-sub');
+    var notes = $('notes');
+    notes.innerHTML = '';
+
+    if (p === null) {
+      // older backend that only returns { result }
+      gauge.hidden = true;
+      score.hidden = true;
+      sub.textContent = 'The model read this image as ' + (isCovid ? 'COVID.' : 'Non-COVID.');
+    } else {
+      gauge.hidden = false;
+      score.hidden = false;
+      var pct = Math.round(p * 100);
+      var level = confidenceWord(p);
+      if (level === 'low') sub.textContent = 'The score is close to the 50% line, leaning ' + (isCovid ? 'COVID' : 'non-COVID') + '. The model cannot tell these apart here.';
+      if (level === 'moderate') sub.textContent = 'The model is moderately confident in this reading.';
+      if (level === 'high') sub.textContent = 'The model is highly confident in this reading.';
+      score.textContent = 'Model score: ' + pct + '% COVID, ' + (100 - pct) + '% non-COVID';
+      $('track').setAttribute('aria-label', 'COVID score ' + pct + ' percent, decision line at 50 percent');
+      var pin = $('pin');
+      pin.style.left = '50%';
+      // next frame, so the pin slides from the decision line to the score
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          pin.style.left = Math.min(98, Math.max(2, p * 100)) + '%';
+        });
+      });
+    }
+
+    (data.warnings || []).forEach(function (text) {
+      var li = document.createElement('li');
+      li.className = 'warn';
+      li.textContent = text;
+      notes.appendChild(li);
+    });
+
+    show('done');
+  }
+
+  function analyse() {
+    if (!currentFile) return;
+    var body = new FormData();
+    body.append('file', currentFile);
+    setBusy(true);
+    show('busy');
+
+    fetch('/predict', { method: 'POST', body: body })
+      .then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (data) {
+          if (!res.ok) throw new Error(data.error || 'The server returned an error (' + res.status + ').');
+          return data;
+        });
+      })
+      .then(render)
+      .catch(function (err) {
+        var offline = err instanceof TypeError;
+        showError(offline ? 'Could not reach the server. Check that the app is running, then try again.' : err.message);
+      })
+      .then(function () { setBusy(false); });
+  }
+
+  input.addEventListener('change', function () { setFile(input.files[0]); });
+  analyseBtn.addEventListener('click', analyse);
+  clearBtn.addEventListener('click', clearFile);
+
+  ['dragenter', 'dragover'].forEach(function (type) {
+    film.addEventListener(type, function (e) { e.preventDefault(); film.classList.add('dragging'); });
+  });
+  ['dragleave', 'drop'].forEach(function (type) {
+    film.addEventListener(type, function (e) { e.preventDefault(); film.classList.remove('dragging'); });
+  });
+  film.addEventListener('drop', function (e) {
+    if (input.disabled) return;
+    var files = e.dataTransfer && e.dataTransfer.files;
+    if (files && files.length) setFile(files[0]);
+  });
+})();
+</script>
+</body>
+</html>

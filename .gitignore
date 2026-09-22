@@ -1,0 +1,5 @@
+models/*.h5
+models/*.keras
+models/*.tflite
+uploads/
+__pycache__/

@@ -1,0 +1,6 @@
+# Pin tensorflow to the version you trained with: run `pip show tensorflow` on your PC.
+tensorflow-cpu>=2.15
+flask>=3.0
+pillow>=10.0
+numpy
+gunicorn>=22.0
