@@ -5,7 +5,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY flask_app.py .
 COPY templates templates
 # Either copy the model into the image...
-COPY models models
+# COPY models models
 # ...or leave models/ empty and set MODEL_URL at runtime instead.
 ENV PORT=7860
 EXPOSE 7860
