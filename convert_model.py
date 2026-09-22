@@ -1,15 +1,3 @@
-"""
-One-off conversion of your already-trained model. No retraining, no dataset.
-
-  python convert_model.py "C:/Users/levia/OneDrive/Desktop/ML/Covid.h5"
-
-Run it in the SAME Python environment you trained in (same TensorFlow version),
-so the old .h5 loads exactly as it did before.
-
-Outputs, in ./models:
-  Covid_hybrid_v2.keras   the current Keras format (recommended)
-  Covid_hybrid_v2.tflite  optional, ~half the size (float16), via --tflite
-"""
 import argparse
 import os
 

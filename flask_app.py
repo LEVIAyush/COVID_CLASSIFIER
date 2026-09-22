@@ -1,14 +1,3 @@
-"""
-Flask app for the chest X-ray COVID classifier.
-
-Run locally:      python flask_app.py
-Run in production: gunicorn -w 1 --threads 4 -b 0.0.0.0:$PORT flask_app:app
-
-Configuration is by environment variable, so nothing is hard-coded to one PC:
-  MODEL_PATH         path to the model file (.keras, .h5 or .tflite)
-  MODEL_URL          optional; downloaded to MODEL_PATH on first start if missing
-  COVID_CLASS_INDEX  which sigmoid output means COVID: 0 or 1 (see README note)
-"""
 import io
 import os
 import threading
@@ -28,11 +17,6 @@ IMG_SIZE = 224          # must match IMG_SIZE in the training script
 THRESHOLD = 0.5
 MAX_UPLOAD_MB = 10
 ALLOWED_FORMATS = {"PNG", "JPEG", "BMP", "WEBP"}
-
-# flow_from_directory numbers classes alphabetically, and the model's single
-# sigmoid output is the probability of class index 1.  Your original app treated
-# "output < 0.5" as COVID, i.e. COVID = index 0, so that is the default here.
-# Confirm with:  print(train_gen.class_indices)  in the training script.
 COVID_CLASS_INDEX = int(os.environ.get("COVID_CLASS_INDEX", "0"))
 
 app = Flask(__name__)
@@ -113,8 +97,6 @@ def read_image(file_storage):
 
 
 def preprocess(img):
-    # NEAREST matches Keras' default for both load_img and flow_from_directory,
-    # so inference sees the same pixels the model saw in training.
     rgb = img.convert("RGB").resize((IMG_SIZE, IMG_SIZE), Image.NEAREST)
     arr = np.asarray(rgb, dtype="float32")
     return np.expand_dims(arr / 255.0, axis=0), arr
